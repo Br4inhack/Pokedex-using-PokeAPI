@@ -1,0 +1,11 @@
+# Ignore dependencies and environment secrets
+pokemon-api/node_modules/
+pokemon-api/.env
+pokemon-api/.env.production
+pokemon-api/*.log
+
+# System files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
