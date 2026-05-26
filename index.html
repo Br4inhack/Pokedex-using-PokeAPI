@@ -1,182 +1,652 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pokemon Explorer</title>
-    <style>
-        /* We'll keep CSS minimal for now — focus is on JS concepts */
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PokéDex Explorer — Production Grade</title>
+  <meta name="description" content="A production-grade PokéDex powered by a custom Node.js backend API with caching, auth, and rich Pokémon data.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset & Base ──────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #f0f4f8;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 40px 20px;
-        }
+    :root {
+      --bg:        #0f0f13;
+      --surface:   #1a1a24;
+      --surface2:  #22222f;
+      --border:    #2e2e3e;
+      --text:      #e8e8f0;
+      --muted:     #6b6b8a;
+      --accent:    #6c63ff;
+      --accent2:   #ff6584;
+      --radius:    16px;
+      --transition: 0.25s ease;
+    }
 
-        h1 {
-            font-size: 2rem;
-            margin-bottom: 8px;
-            color: #1a202c;
-        }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 20px 80px;
+    }
 
-        p.subtitle {
-            color: #718096;
-            margin-bottom: 32px;
-        }
+    /* ── Header ───────────────────────────────────────────── */
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
 
-        .search-container {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 32px;
-            width: 100%;
-            max-width: 500px;
-        }
+    .header-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+    }
 
-        input {
-            flex: 1;
-            padding: 12px 16px;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            font-size: 16px;
-            outline: none;
-            transition: border-color 0.2s;
-        }
+    .header h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, #fff 0%, #a0a0c0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
 
-        input:focus {
-            border-color: #4299e1;
-        }
+    .header p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
 
-        button {
-            padding: 12px 24px;
-            background: #4299e1;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
+    /* ── Search ───────────────────────────────────────────── */
+    .search-wrap {
+      width: 100%;
+      max-width: 560px;
+      margin-bottom: 40px;
+    }
 
-        button:hover {
-            background: #3182ce;
-        }
+    .search-box {
+      display: flex;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+      transition: border-color var(--transition);
+    }
 
-        button:disabled {
-            background: #a0aec0;
-            cursor: not-allowed;
-        }
+    .search-box:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.15);
+    }
 
-        #status {
-            font-size: 14px;
-            color: #718096;
-            margin-bottom: 16px;
-            min-height: 20px;
-            /* prevents layout jump */
-        }
+    #search-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      color: var(--text);
+      padding: 8px 12px;
+    }
 
-        #status.error {
-            color: #e53e3e;
-        }
+    #search-input::placeholder { color: var(--muted); }
 
-        #card {
-            background: white;
-            border-radius: 16px;
-            padding: 32px;
-            width: 100%;
-            max-width: 400px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            display: none;
-            /* hidden until we have data */
-        }
+    #search-btn {
+      background: linear-gradient(135deg, var(--accent), #8b82ff);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 22px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity var(--transition), transform var(--transition);
+      white-space: nowrap;
+    }
 
-        #card img {
-            width: 160px;
-            height: 160px;
-            display: block;
-            margin: 0 auto 16px;
-            image-rendering: pixelated;
-            /* crisp pixel art */
-        }
+    #search-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    #search-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-        #card h2 {
-            text-align: center;
-            text-transform: capitalize;
-            font-size: 1.6rem;
-            margin-bottom: 8px;
-        }
+    /* ── Status ───────────────────────────────────────────── */
+    #status {
+      font-size: 14px;
+      color: var(--muted);
+      text-align: center;
+      min-height: 22px;
+      margin-bottom: 8px;
+    }
 
-        .types {
-            display: flex;
-            gap: 8px;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
+    #status.error { color: #ff6b6b; }
 
-        .type-badge {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: capitalize;
-            color: white;
-            background: #718096;
-            /* default, JS will override */
-        }
+    /* ── Card Shell ───────────────────────────────────────── */
+    #card {
+      width: 100%;
+      max-width: 680px;
+      display: none;
+      animation: fadeUp 0.4s ease forwards;
+    }
 
-        .stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
 
-        .stat {
-            background: #f7fafc;
-            border-radius: 8px;
-            padding: 10px 12px;
-        }
+    /* ── Hero Section ─────────────────────────────────────── */
+    .hero {
+      border-radius: var(--radius);
+      padding: 36px 32px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 16px;
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 28px;
+      align-items: center;
+    }
 
-        .stat-name {
-            font-size: 11px;
-            color: #718096;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--type-gradient, linear-gradient(135deg, #1a1a24, #22222f));
+      z-index: 0;
+    }
 
-        .stat-value {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #2d3748;
-        }
-    </style>
+    .hero > * { position: relative; z-index: 1; }
+
+    .sprite-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sprite-toggle {
+      display: flex;
+      gap: 6px;
+    }
+
+    .sprite-btn {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+
+    .sprite-btn.active,
+    .sprite-btn:hover {
+      background: rgba(255,255,255,0.22);
+    }
+
+    #pokemon-img {
+      width: 180px;
+      height: 180px;
+      object-fit: contain;
+      drop-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      transition: opacity 0.2s;
+    }
+
+    .hero-info {}
+
+    .pokemon-number {
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.45);
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .pokemon-name {
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: white;
+      text-transform: capitalize;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+
+    .pokemon-genus {
+      font-size: 13px;
+      color: rgba(255,255,255,0.55);
+      margin-bottom: 14px;
+      font-style: italic;
+    }
+
+    .type-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .type-badge {
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: capitalize;
+      color: white;
+      letter-spacing: 0.3px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .meta-item {
+      background: rgba(0,0,0,0.25);
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+
+    .meta-label {
+      font-size: 10px;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 2px;
+    }
+
+    .meta-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      text-transform: capitalize;
+    }
+
+    /* ── Special Badges ───────────────────────────────────── */
+    .badge-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .badge-legendary { background: rgba(255, 215, 0, 0.2); color: #ffd700; border: 1px solid rgba(255,215,0,0.3); }
+    .badge-mythical  { background: rgba(255, 105, 180, 0.2); color: #ff69b4; border: 1px solid rgba(255,105,180,0.3); }
+    .badge-baby      { background: rgba(100, 200, 100, 0.2); color: #64c864; border: 1px solid rgba(100,200,100,0.3); }
+    .badge-gen       { background: rgba(108, 99, 255, 0.2); color: #9d97ff; border: 1px solid rgba(108,99,255,0.3); }
+
+    /* ── Section Panels ───────────────────────────────────── */
+    .panels {
+      display: grid;
+      gap: 12px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 20px;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid transparent;
+      transition: background var(--transition);
+    }
+
+    .panel-header:hover { background: rgba(255,255,255,0.03); }
+
+    .panel-header.open { border-bottom-color: var(--border); }
+
+    .panel-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      flex: 1;
+      color: var(--text);
+    }
+
+    .panel-chevron {
+      font-size: 12px;
+      color: var(--muted);
+      transition: transform var(--transition);
+    }
+
+    .panel-chevron.open { transform: rotate(180deg); }
+
+    .panel-body {
+      padding: 20px;
+      display: none;
+    }
+
+    .panel-body.open { display: block; }
+
+    /* ── Stats ────────────────────────────────────────────── */
+    .stat-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: 130px 42px 1fr;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .stat-name {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: capitalize;
+      font-weight: 500;
+    }
+
+    .stat-val {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      text-align: right;
+    }
+
+    .stat-bar-track {
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .stat-bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .stat-total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 12px;
+      margin-top: 4px;
+      border-top: 1px solid var(--border);
+    }
+
+    .stat-total-label { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .stat-total-val   { font-size: 18px; font-weight: 800; color: var(--text); }
+
+    /* ── Abilities ────────────────────────────────────────── */
+    .ability-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .ability-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .ability-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .ability-name {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: capitalize;
+      flex: 1;
+    }
+
+    .ability-hidden-tag {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent);
+      background: rgba(108,99,255,0.15);
+      border: 1px solid rgba(108,99,255,0.25);
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Flavor Text ──────────────────────────────────────── */
+    .flavor-text {
+      font-size: 14px;
+      line-height: 1.75;
+      color: var(--muted);
+      font-style: italic;
+      border-left: 3px solid var(--accent);
+      padding-left: 16px;
+      margin-bottom: 12px;
+    }
+
+    .flavor-nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .flavor-nav button {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 18px;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background var(--transition);
+    }
+
+    .flavor-nav button:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
+    .flavor-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .flavor-counter {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ── Breeding / Info Grid ─────────────────────────────── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .info-cell {
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .info-label {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 4px;
+    }
+
+    .info-value {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: capitalize;
+      color: var(--text);
+    }
+
+    /* ── Held Items ───────────────────────────────────────── */
+    .held-items-list { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .held-item-chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+
+    .empty-state {
+      font-size: 13px;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ── Responsive ───────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .hero {
+        grid-template-columns: 1fr;
+        text-align: center;
+        padding: 24px 20px;
+      }
+
+      #pokemon-img { width: 140px; height: 140px; }
+      .type-badges, .meta-grid, .badge-row { justify-content: center; }
+      .meta-grid { grid-template-columns: 1fr 1fr; }
+      .stat-row  { grid-template-columns: 100px 38px 1fr; gap: 8px; }
+      .info-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
 </head>
-
 <body>
-    <h1>Pokemon Explorer</h1>
-    <p class="subtitle">Search any Pokemon by name or ID</p>
 
-    <div class="search-container">
-        <input type="text" id="search-input" placeholder="e.g. pikachu, charizard, 25" autocomplete="off" />
-        <button id="search-btn">Search</button>
+  <header class="header">
+    <div class="header-badge">Production Grade</div>
+    <h1>PokéDex Explorer</h1>
+    <p>Powered by a custom Node.js backend with caching & JWT auth</p>
+  </header>
+
+  <div class="search-wrap">
+    <div class="search-box">
+      <input
+        type="text"
+        id="search-input"
+        placeholder="Search by name or ID — pikachu, charizard, 25…"
+        autocomplete="off"
+      />
+      <button id="search-btn">Search</button>
+    </div>
+  </div>
+
+  <div id="status"></div>
+
+  <div id="card">
+
+    <!-- Hero -->
+    <div class="hero" id="hero-section">
+      <div class="sprite-wrap">
+        <img id="pokemon-img" src="" alt="" loading="lazy" />
+        <div class="sprite-toggle">
+          <button class="sprite-btn active" id="btn-default">Normal</button>
+          <button class="sprite-btn" id="btn-shiny">✨ Shiny</button>
+        </div>
+      </div>
+      <div class="hero-info">
+        <div class="pokemon-number" id="pokemon-number">#001</div>
+        <div class="pokemon-name"  id="pokemon-name">Bulbasaur</div>
+        <div class="pokemon-genus" id="pokemon-genus">Seed Pokémon</div>
+        <div class="type-badges"   id="pokemon-types"></div>
+        <div class="meta-grid"     id="pokemon-meta"></div>
+        <div class="badge-row"     id="pokemon-badges"></div>
+      </div>
     </div>
 
-    <!-- Status message: loading / error / empty -->
-    <div id="status"></div>
+    <div class="panels">
 
-    <!-- Pokemon card — hidden until data loads -->
-    <div id="card"></div>
+      <!-- Base Stats -->
+      <div class="panel" id="panel-stats">
+        <div class="panel-header open" onclick="togglePanel('stats')">
+          <div class="panel-icon" style="background:rgba(99,179,237,0.15)">📊</div>
+          <span class="panel-title">Base Stats</span>
+          <span class="panel-chevron open" id="chevron-stats">▾</span>
+        </div>
+        <div class="panel-body open" id="body-stats"></div>
+      </div>
 
-    <!-- Our JavaScript file -->
-    <script src="app.js"></script>
+      <!-- Abilities -->
+      <div class="panel" id="panel-abilities">
+        <div class="panel-header" onclick="togglePanel('abilities')">
+          <div class="panel-icon" style="background:rgba(154,117,234,0.15)">⚡</div>
+          <span class="panel-title">Abilities</span>
+          <span class="panel-chevron" id="chevron-abilities">▾</span>
+        </div>
+        <div class="panel-body" id="body-abilities"></div>
+      </div>
+
+      <!-- Flavor Text / Pokédex Entry -->
+      <div class="panel" id="panel-flavor">
+        <div class="panel-header" onclick="togglePanel('flavor')">
+          <div class="panel-icon" style="background:rgba(246,173,85,0.15)">📖</div>
+          <span class="panel-title">Pokédex Entry</span>
+          <span class="panel-chevron" id="chevron-flavor">▾</span>
+        </div>
+        <div class="panel-body" id="body-flavor"></div>
+      </div>
+
+      <!-- Training / Breeding Info -->
+      <div class="panel" id="panel-info">
+        <div class="panel-header" onclick="togglePanel('info')">
+          <div class="panel-icon" style="background:rgba(104,211,145,0.15)">🌿</div>
+          <span class="panel-title">Training & Breeding</span>
+          <span class="panel-chevron" id="chevron-info">▾</span>
+        </div>
+        <div class="panel-body" id="body-info"></div>
+      </div>
+
+      <!-- Held Items -->
+      <div class="panel" id="panel-items">
+        <div class="panel-header" onclick="togglePanel('items')">
+          <div class="panel-icon" style="background:rgba(252,129,74,0.15)">🎒</div>
+          <span class="panel-title">Held Items</span>
+          <span class="panel-chevron" id="chevron-items">▾</span>
+        </div>
+        <div class="panel-body" id="body-items"></div>
+      </div>
+
+    </div><!-- /panels -->
+  </div><!-- /card -->
+
+  <script src="app.js"></script>
 </body>
-
 </html>
