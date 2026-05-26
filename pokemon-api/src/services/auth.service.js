@@ -5,6 +5,7 @@
 const jwt      = require('jsonwebtoken');
 const bcrypt   = require('bcryptjs');
 const crypto   = require('crypto');
+const config   = require('../config');
 
 // In-memory user store — keyed by email
 // Replace with database in production
@@ -14,15 +15,14 @@ const users = new Map();
 
 function generateToken(userId) {
   return jwt.sign(
-    { userId },                          // payload
-    process.env.JWT_SECRET,             // secret key
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }  // options
+    { userId },
+    config.jwt.secret,
+    { expiresIn: config.jwt.expiresIn }
   );
 }
 
 function verifyToken(token) {
-  // Throws if invalid or expired
-  return jwt.verify(token, process.env.JWT_SECRET);
+  return jwt.verify(token, config.jwt.secret);
 }
 
 // ── User functions ─────────────────────────────────────────
